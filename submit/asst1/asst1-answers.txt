@@ -1,0 +1,319 @@
+Question 1
+
+*Note not sure if the question is reffering to the the first assembly
+function (jump handle) in our boot process or the first C function in our kernel
+so I've answered for both
+
+gdb output:
+
+__start () at ../../arch/sys161/main/start.S:54
+54	   addiu sp, sp, -24
+(gdb) n
+55	   sw ra, 20(sp)
+(gdb) n
+89	   la s0, _end		/* stash _end in a saved register */
+(gdb) n
+91	   move a1, a0		/* move bootstring to the second argument */
+(gdb) n
+92	   move a0, s0		/* make _end the first argument */
+(gdb) n
+93	   jal strcpy		/* call strcpy(_end, bootstring) */
+(gdb) n
+96	   move a0, s0		/* make _end the first argument again */
+(gdb) n
+97	   jal strlen		/* call strlen(_end) */
+(gdb) n
+100	   add t0, s0, v0	/* add in the length of the string */
+(gdb) n
+101	   addi t0, t0, 1	/* and the null terminator */
+(gdb) n
+104	   addi t0, t0, 4095	/* round up to next page boundary */
+(gdb) n
+105	   li   t1, 0xfffff000
+(gdb) n
+106	   and  t0, t0, t1
+(gdb) n
+108	   addi t0, t0, 4096	/* add one page to hold the stack */
+(gdb) n
+110	   move sp, t0		/* start the kernel stack for the first thread here */
+(gdb) n
+__start () at ../../arch/sys161/main/start.S:112
+112	   sw t0, firstfree	/* remember the first free page for later */
+(gdb) n
+127	   addiu sp, sp, -24
+(gdb) n
+128	   sw $0, 20(sp)
+(gdb) n
+134	   li a0, EXADDR_UTLB
+(gdb) n
+135	   la a1, mips_utlb_handler
+(gdb) n
+136	   la a2, mips_utlb_end
+(gdb) n
+137	   sub a2, a2, a1
+(gdb) n
+138	   jal memmove
+(gdb) n
+141	   li a0, EXADDR_GENERAL
+(gdb) n
+142	   la a1, mips_general_handler
+(gdb) n
+143	   la a2, mips_general_end
+(gdb) n
+144	   sub a2, a2, a1
+(gdb) n
+145	   jal memmove
+(gdb) n
+152	   jal mips_flushicache
+(gdb) n
+158	   jal tlb_reset
+(gdb) n
+164	   li s7, 0
+(gdb) n
+190	   li  t0, CST_IRQMASK		/* get value */
+(gdb) n
+191	   mtc0 t0, c0_status		/* set status register */
+(gdb) n
+201	   mtc0 $0, c0_context
+(gdb) n
+209	   la gp, _gp
+(gdb) n
+215	   jal kmain
+(gdb) s
+kmain (arguments=0x80035c20 "") at ../../main/main.c:211
+211		boot();
+(gdb) 
+
+
+answer:
+
+here we can see that __start() in kern/arch/sys161/main/start on line 54 is the 
+first assembly jump handle called and that kmain() is the first C function in the kernel
+
+Question 2
+
+In the out put of the debugger above we can see that 
+the first assembly line is:
+addiu sp, sp, -24
+
+Question 3
+
+(gdb) break showmenu
+Breakpoint 1 at 0x800143a0: file ../../main/menu.c, line 415.
+(gdb) break kmain
+Breakpoint 2 at 0x800139e4: file ../../main/main.c, line 211.
+(gdb) info breakpoints
+Num     Type           Disp Enb Address    What
+1       breakpoint     keep y   0x800143a0 in showmenu at ../../main/menu.c:415
+2       breakpoint     keep y   0x800139e4 in kmain at ../../main/main.c:211
+
+Question 4
+
+gdb output:
+
+__start () at ../../arch/sys161/main/start.S:112
+112	   sw t0, firstfree	/* remember the first free page for later */
+(gdb) n
+127	   addiu sp, sp, -24
+(gdb) n
+128	   sw $0, 20(sp)
+(gdb) n
+134	   li a0, EXADDR_UTLB
+(gdb) n
+135	   la a1, mips_utlb_handler
+(gdb) n
+136	   la a2, mips_utlb_end
+(gdb) n
+137	   sub a2, a2, a1
+(gdb) n
+138	   jal memmove
+(gdb) n
+141	   li a0, EXADDR_GENERAL
+(gdb) n
+142	   la a1, mips_general_handler
+(gdb) n
+143	   la a2, mips_general_end
+(gdb) n
+144	   sub a2, a2, a1
+(gdb) n
+145	   jal memmove
+(gdb) n
+152	   jal mips_flushicache
+(gdb) n
+158	   jal tlb_reset
+(gdb) n
+164	   li s7, 0
+(gdb) n
+190	   li  t0, CST_IRQMASK		/* get value */
+(gdb) n
+191	   mtc0 t0, c0_status		/* set status register */
+(gdb) n
+201	   mtc0 $0, c0_context
+(gdb) n
+209	   la gp, _gp
+(gdb) n
+215	   jal kmain
+(gdb) n
+
+answer:
+
+System 161 sets up a bootstack for the first processor at the top of physical memory
+and passes us a single string argument bootstring that lives at the top of the stack.
+We load the bootstring to memory and then load the exception handler code onto the first
+page of memory. Then we initialize the TLB. Next we setup the status register and the gp register. 
+Now that everything is set up we fetch a copy of the boot string as an argument and call kmain.
+
+
+
+Question 5
+
+gdb output:
+
+(gdb) n
+215	   jal kmain
+
+answer:
+
+in the gdb output we can see that the kernel main function is called
+by the "jal kmain" assembly instruction on line 215
+
+Question 6
+
+gdb output:
+
+211		boot();
+(gdb) s
+boot () at ../../main/main.c:99
+99		kprintf("\n");
+(gdb) n
+100		kprintf("OS/161 base system version %s\n", BASE_VERSION);
+(gdb) n
+101		kprintf("%s", harvard_copyright);
+(gdb) n
+102		kprintf("\n");
+(gdb) n
+104		kprintf("Put-your-group-name-here's system version %s (%s #%d)\n",
+(gdb) n
+106		kprintf("\n");
+(gdb) n
+109		ram_bootstrap();
+(gdb) n
+110		proc_bootstrap();
+(gdb) n
+111		thread_bootstrap();
+(gdb) n
+112		hardclock_bootstrap();
+(gdb) n
+113		vfs_bootstrap();
+(gdb) n
+114		kheap_nextgeneration();
+(gdb) n
+117		kprintf("Device probe...\n");
+(gdb) n
+118		KASSERT(curthread->t_curspl > 0);
+(gdb) n
+119		mainbus_bootstrap();
+(gdb) n
+120		KASSERT(curthread->t_curspl == 0);
+(gdb) n
+122		pseudoconfig();
+(gdb) n
+123		kprintf("\n");
+(gdb) n
+124		kheap_nextgeneration();
+(gdb) n
+127		vm_bootstrap();
+(gdb) n
+128		kprintf_bootstrap();
+(gdb) n
+129		thread_start_cpus();
+(gdb) n
+132		vfs_setbootfs("emu0");
+(gdb) n
+134		kheap_nextgeneration();
+(gdb) n
+141	}
+(gdb) n
+
+answer:
+
+All functions called:
+109		ram_bootstrap();
+110		proc_bootstrap();
+111		thread_bootstrap();
+112		hardclock_bootstrap();
+113		vfs_bootstrap();
+114		kheap_nextgeneration();
+119		mainbus_bootstrap();
+122		pseudoconfig();
+124		kheap_nextgeneration();
+127		vm_bootstrap();
+128     kprintf_bootstrap();
+129		thread_start_cpus();
+132		vfs_setbootfs("emu0");
+134		kheap_nextgeneration();
+
+question 7:
+
+gbd output:
+
+Breakpoint 1, thread_bootstrap () at ../../thread/thread.c:357
+357		cpuarray_init(&allcpus);
+(gdb) print *bootcpu
+Cannot access memory at address 0x80000
+
+Question 8
+
+gdb output:
+
+(gdb) n
+367		bootcpu = cpu_create(0);
+(gdb) n
+368		bootthread = bootcpu->c_curthread;
+(gdb) print *bootcpu
+$2 = {c_self = 0x8003af00, c_number = 0, c_hardware_number = 0, c_curthread = 0x8003bf80, c_zombies = {
+    tl_head = {tln_prev = 0x0, tln_next = 0x8003af1c, tln_self = 0x0}, tl_tail = {
+      tln_prev = 0x8003af10, tln_next = 0x0, tln_self = 0x0}, tl_count = 0}, c_hardclocks = 0, 
+  c_spinlocks = 0, c_isidle = false, c_runqueue = {tl_head = {tln_prev = 0x0, tln_next = 0x8003af44, 
+      tln_self = 0x0}, tl_tail = {tln_prev = 0x8003af38, tln_next = 0x0, tln_self = 0x0}, 
+    tl_count = 0}, c_runqueue_lock = {splk_lock = 0, splk_holder = 0x0}, c_ipi_pending = 0, 
+  c_shootdown = {{ts_placeholder = 0} <repeats 16 times>}, c_numshootdown = 0, c_ipi_lock = {
+    splk_lock = 0, splk_holder = 0x0}}
+
+
+Question 9
+
+gdb output:
+
+Breakpoint 1, kmain (arguments=0x80035c20 "") at ../../main/main.c:211
+211		boot();
+(gdb) cpuarray allcpus
+0 cpus
+
+Question 10
+
+gdb output:
+
+(gdb) n
+213		menu(arguments);
+(gdb) cpuarray allcpus
+1 cpus
+cpu 0:
+$1 = {c_self = 0x8003af00, c_number = 0, c_hardware_number = 0, c_curthread = 0x8003bf80, c_zombies = {
+    tl_head = {tln_prev = 0x0, tln_next = 0x8003af1c, tln_self = 0x0}, tl_tail = {
+      tln_prev = 0x8003af10, tln_next = 0x0, tln_self = 0x0}, tl_count = 0}, c_hardclocks = 1, 
+  c_spinlocks = 0, c_isidle = false, c_runqueue = {tl_head = {tln_prev = 0x0, tln_next = 0x8003af44, 
+      tln_self = 0x0}, tl_tail = {tln_prev = 0x8003af38, tln_next = 0x0, tln_self = 0x0}, 
+    tl_count = 0}, c_runqueue_lock = {splk_lock = 0, splk_holder = 0x0}, c_ipi_pending = 0, 
+  c_shootdown = {{ts_placeholder = 0} <repeats 16 times>}, c_numshootdown = 0, c_ipi_lock = {
+    splk_lock = 0, splk_holder = 0x0}}
+
+
+
+
+
+
+
+
+
+

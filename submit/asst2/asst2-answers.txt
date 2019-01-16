@@ -1,0 +1,139 @@
+1. What happens to a thread when it exits (i.e., calls thread_exit())? What about when it sleeps?
+
+Thread exit:
+To exit a thread, thread_exit() is called
+In thread_exit we pass our current thread into proc_remthread()
+
+In proc_remthread we get a spinlock on the process the thread
+belongs to. We then remove the thread from the process in the thread array
+and release the lock. After this we turn off interrupts and set the t_proc varible
+to null for the thread and then renable interrupts. After this we assert the
+thread has been removed from the process. We then call thread_checkstack to make sure
+we didn't overflow our stack. We then switch threads to the S_ZOMBIE state.
+The thread will be cleaned up in the next call of exorcise(); 
+
+Thread sleep:
+
+To go to sleep wchan_sleep() is called. Here we first assert that we are not
+in an interrupt and that we hold the spin lock lk for the wait channel and no other spin locks.
+We then call thread switch with the S_SLEEP state. In thread switch we disable interrupts
+and check the stack guard band. In the switch statement we go to S_SLEEP and
+we update the threads wait channel name and then call threadlist_addtail to add it to the back 
+of the queue. We then unlock the wait channel and relock it when we reutrn to
+wchan_sleep()
+
+2. What function(s) handle(s) a context switch?
+
+To handle a context switch we use the function thread_switch()
+
+In thread_switch we fdisable interrupts and call spinlock_acquire to lock the run queue
+we then place out current thread into the proper place (wait channel or run queue) depending on its state
+in the switch argument.
+
+After this we get our next thread and call switchframe_switch with our current thread and
+next thread as the arguments.
+
+In switchframe_switch we save the stack of our current thread to memory and load the stack
+of our new thread into the registars.
+
+We then release the run queue and call as_activate() to activate our
+address space in the mmu
+
+We then call exorcise() to clean up threads that have exited and renable interrupts
+
+3. What does it mean for a thread to be in each of the possible thread states?
+
+S_RUN:
+The thread is currently running
+
+S_READY:
+Thread is in the run queue waiting for its turn to run
+
+S_SLEEP:
+Thread is in the waitchannel waiting to be woken up and added to the run queue
+
+S_ZOMBIE:
+The thread has been exited but has not been deleted
+
+4.
+
+ What does it mean to turn interrupts off?  
+
+Turning interrupts off means the cpu will run the current code until interrupts are enabled again. Between disableing and enabling interrupts no other thread
+will be able to preform a context switch and the code will run like its atomic.
+
+How is this accomplished?
+
+Interrupts are turned off by calling splhigh() which will
+eventually trigger cpu_irqoff().
+
+cpu_irqoff() will  set coprocessor 0 register 12 bit 0 to 0 to turn interrupts off
+
+Why is it important to turn off interrupts in the thread subsystem code?
+
+It is important to turn off interrupts so that we can properly execute context switches and
+thread deletions
+
+5. What happens when a thread wakes up another thread? How does a sleeping thread get to run again?
+
+A thread wakes up another thread by calling wchan_wakeone().
+This function will call threadlist_remhead() in threadlist. to get the next thread
+in the wait channel. We then pass the thread to thread_make_runnable() to add it 
+to the run queue. One could alsp call wchan_wakeall() to wake all threads in a wait channel.
+
+How does a sleeping thread get to run again?
+
+For a sleeping thread to run again it must be passed 
+thread_make_runnable() which will lock the run queue and add the thread to the tail of the run queue
+and unlock the run queue again. The thread will then wait in the run queue for it's context switch to start running.
+
+6. What function(s) choose(s) the next thread to run?
+7.How does it (do they) pick the next thread?
+
+*note: questions 6 and 7 are answered in the same section
+
+thread_switch():
+
+On line 642 we can see that the next thread to run is pulled from the cpu run queue
+If no threads are present we idle the cpu until a thread is ready to be run
+
+schedule():
+
+This is called periodically by hardclock() to reshuffle threads by job priority,
+currently no code for schedule is implemented and threads will run in round robin fashion
+
+thread_consider_migration():
+
+This is also called periodically by hardclock() and will shuffle threads to other
+CPUs if the current cpu is busy and other cpus are idle. The threads moved to other cpus will
+be the next ones in the run queue. The total number of threads sent is determined by the
+load of other cpus and the size of the run queue.
+
+8. What role does the hardware timer play in scheduling? 
+
+The hardware timer determines when we should call schedule() and thread_consider_migration()
+
+What hardware independent function is called on a timer interrupt?
+
+We can see in clock.c that the function used to call schedule() and thread_consider_migration is
+hardclock(). In hardclock() we can see that schedule() has been defined to be called every
+4 cycles and thread_consider_migration() every 16
+
+9. Describe how wchan_sleep() and wchan_wakeone() are used to implement semaphores.
+
+wchan_sleep() is the P function of a semaphore. It puts the current
+thread to sleep until the semaphore count is greater than 0  
+
+wchan_wakeone() is the V function of a semaphore. It wakes up the thread by removing it from the 
+wait channel and incremeting the semaphore back to one.
+
+
+10. How does the implementation of wchan ensure that a thread never misses a wakeup signal: that another thread cannot attempt to awaken the first thread just as it is preparing to sleep, but before it is actually placed into the sleep queue?
+
+To put a thread to sleep in wchan_sleep we first make sure we are holding the spin lock to 
+the wait channel before we call thread_switch() with the S_SLEEP state.
+In the S_SLEEP case we add the thread to the wait channel while still holding the lock.
+Since waking up a thread requires holding the wait channel lock, no thread can wake up the thread as we 
+add it to the channel since we are holding the lock as we add it. After it is added we release
+the lock and re acquire it when we return to the wchan_sleep() function from thread_switch().
+

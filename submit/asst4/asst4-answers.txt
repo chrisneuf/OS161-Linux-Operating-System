@@ -1,0 +1,101 @@
+                                        Assigment 4
+
+
+
+1. What are the ELF magic numbers?
+
+    In kern/include/elf.h, we can see than these numbers at the first four bytes of e_ident. They are used to determine if a file is in Executable and linkable format.
+    These magic numbers:
+    - ELFMAG0  = 0x7F
+    - ELFMAG1 = 'E'
+    - ELFMAG2 = 'L'
+    - ELFMAG3 =  'F'
+
+2. What is the difference between UIO_USERISPACE and UIO_USERSPACE? When should one use UIO_SYSSPACE instead?
+
+    In src/kern/include/uio.h, we can see that UIO_USERSPACE is for user process data and UIO_USERISPACE is for user process code.
+    It is in src/kern/lib/uio.c and src/kern/syscall/loadelf to determine if a memory pointer is pointing to user process code(USERISPACE) or user process data (USERSSPACE)
+    based on the seg_flg field of the uio struct (abstraction encapsulating of a memory block).
+
+    UIO_SYSSPACE is used when the memory block resides in the kernel space.
+
+3. Why can the struct uio that is used to read in a segment be allocated on the stack in load_segment() (i.e., where does the memory read actually go)?
+
+    uio struct has a pointer for a iovec struct which points to a address in virtual memory. This virtual
+    memory will be the destination of the readfile. Because of this uio can be allocated on the stack
+
+
+4. In runprogram(), why is it important to call vfs_close() before going to usermode?
+
+    When runprogramme() is called, it opens the programme file and loads it into userspace. once the file is loaded, vfs_close need to be called to decrement the file reference count.
+    If we switch to user mode without doing this, the file will never be removed from memory, thus causing a leak.
+
+5. What function forces the processor to switch into usermode? Is this function machine dependent?
+
+    The processor is forced to switch to usermode in the function mips-usermode() which is called by
+    enter_new_process() and enter_fork_process() (in kern/arch/mips/locore/trap.c). This function is machine dependent on the mips architecture
+    to disable interrupts(for example) while entering usermode.
+
+
+6. In what file are copyin and copyout defined? memmove? Why can't copyin and copyout be implemented as simply as memmove?
+
+    - copyin and copyout function are defined in kern/vm/copyinout.c
+    - memmove() fucntion is defined in common/libc/string/memmove.c
+
+    copyin and copyout are used to copy memory blocks from userspace to kernel space or vice versa while ensuring that the pointers are not accessing out of limit addresses,
+    whereas memmove is used to copy memory within the same privilege level.
+
+7. What (briefly) is the purpose of userptr_t?
+
+    userptr_t is used to identify pointers that came from user space. Its purpose is to define an address that must be within the user space.
+
+8. What is the numerical value of the exception code for a MIPS system call?
+
+    The numerical value of the exception code for system calls is 8 (EX_SYS). This can be seen in kern/arch/mips/inclue/trapframe.h
+    
+9. How many bytes is an instruction in MIPS? (Answer this by reading syscall() carefully, not by looking somewhere else.)
+
+    An instruction in MIPS is 4 bytes. At the end of the syscall() fucntion the program counter is advanced by one instrution at line 141.
+    This is performed by adding 4 to the trapframe's program counter.
+
+10. Why do you "probably want to change" the implementation of kill_curthread()?
+
+    kill_curthread() should handle fatal faults instead of calling panic(), which it currently does no matter what the fault is. The memory the thread was using should then be freed.
+    
+11. What would be required to implement a system call that took more than 4 arguments?
+
+    We would need to store additional arguments on the stack starting at sp+16.
+
+12. What is the purpose of the SYSCALL macro?
+
+    The SYSCALL macro is used to map every system call to a syscall number allowing it to handle any syscall. 
+    One the system call number is loaded into the v0 register, 
+    call the jumping to the shared syscall code will automatically resolve to the right system call.
+
+13. What is the MIPS instruction that actually triggers a system call? (Answer this by reading the source in this directory, not looking somewhere else.)
+
+    The MIPS instruciton that triggers the system call is "syscall". this can be found in src/userland/lib/libc/arch/mips/syscalls-mips.S (line 84)
+
+14. After reading syscalls-mips.S and syscall.c, you should be prepared to answer the following question: OS/161 supports 64-bit values; lseek() takes and returns a 64-bit offset value. Thus, lseek() takes a 32-bit file handle (arg0), a 64-bit offset (arg1), a 32-bit whence (arg2), and needs to return a 64-bit offset value. In void syscall(struct trapframe *tf) where will you find each of the three arguments (in which registers) and how will you return the 64-bit offset?
+
+- arg0 will be placed into register a0
+- arg1 will be placed in registers a2 and a3 (needs to be aligned by 64-bit offset)
+- arg3 will be place on the user stack at sp+16.
+
+- 64-bit offset return value will be place on register v0 and v1.
+
+15. As you were reading the code in runprogram.c and loadelf.c, you probably noticed how the kernel manipulates the files. Which kernel function is called to open a file? Which macro is called to read the file? What about to write a file? Which data structure is used in the kernel to represent an open file? 
+
+- vfs_open() is used to open files.
+- VOP_READ macro is used to read files
+- VOP_WRITE macro is used to writes files.
+- an open file is represented in the kernl by a vnode struct
+
+
+16. What is the purpose of VOP_INCREF and VOP_DECREF?
+
+    VOP_INCREF is used to increment the reference count  of the vnode reperesenting a file in memory. This should be called every time a process opens the corresponding file.
+
+    VOP_DECREF is used to decrement the reference count of the vnode representing a file in memory. This should be called every time process closes the corresponding file.
+
+    These methods are used with a reference count to allow multiple process to access a file without interfering with each other.

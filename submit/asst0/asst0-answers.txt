@@ -1,0 +1,179 @@
+Output from sys161 kernel
+
+chrisneuf@chrisneuf-Inspiron-7559:~/os161/root$ sys161 kernel
+sys161: System/161 release 2.0.3, compiled Sep 12 2018 17:07:27
+
+OS/161 base system version 1.99.08
+Copyright (c) 2000, 2001-2005, 2008-2011, 2013, 2014
+   President and Fellows of Harvard College.  All rights reserved.
+
+Put-your-group-name-here's system version 0 (DUMBVM #1)
+
+292k physical memory available
+Device probe...
+lamebus0 (system main bus)
+emu0 at lamebus0
+ltrace0 at lamebus0
+ltimer0 at lamebus0
+beep0 at ltimer0
+rtclock0 at ltimer0
+lrandom0 at lamebus0
+random0 at lrandom0
+lhd0 at lamebus0
+lhd1 at lamebus0
+lser0 at lamebus0
+con0 at lser0
+
+cpu0: MIPS/161 (System/161 2.x) features 0x0
+OS/161 kernel [? for menu]: 
+
+
+Output from git log
+commit d3d6bdbe78a668dab3d3c2b89c7bcd17cd67b2b0
+Author: Christian Neufeld <neufeld.christian1@gmail.com>
+Date:   Sun Sep 16 15:33:08 2018 -0700
+
+    Initial commit of os161 for CPEN331
+
+Output from git tag
+
+asst0-start
+
+
+---------------------------------------------------------------------------
+
+Question 1
+
+The first line of code that gets executed can be found in kern/arch/mips/locore/exception-mips.S which is the entry point for exceptions.
+In lin 86 we see the mips_general_handler whos code is copied into the address 0x80000080 where the mips processor automatically invokes it.
+Under the common_exception jump handle we can see mips_trap() is called which can be found in kern/arch/mips/locore/trap.c. Mips_trap() will then 
+extract the exception code from the registar fields and based on that either call the syscall handler or the interrupt handler. 
+If it is neither of those vm_fault is called on tlb exceptions and if this fails aswell the exception
+is a fatal fault. Interrupts can happen at anytime and are a response to a hardware signal, Traps are an exception in the user process. Both of these 
+are handled by mips_trap() where control is given either the interrupt handler or the syscall depending on the register value. 
+
+Question 2
+
+A syscall is invoked by build/userland/lib/libc/syscalls.S. To create a syscall we load the syscall number into registar V0 where 
+the kernel expects to find it . 
+
+The function SYSCALL() to load V0 is defined starting on line 50 of the file.
+We can see that in line 56 that we jump to the syscall label and in the jumps delay slot on line 57 we place the syscall number of our
+syscall into V0. On line 85 we use the instruction "syscall" which will create an exception and invoke the trap. 
+
+On lines 97-182 we can see the different syscall numbers that are defined for different 
+syscalls.
+
+Question 3
+
+The libc functions are split between common and userland so that we have access to the functions sorted in common/libc when develpoing the kernel.
+Since the kernel doesn't have access to the user space functions we put the library functions that will be used by both in the common folder
+to avoid code duplication.
+
+Question 4
+
+Configure configures the target hardware platform and the machine type. In our case they are 'sys161' and 'mips'. If we change our host OS (eg. start working on ece server instead of my laptop)
+we have to rerun the congiure script. 
+
+Question 5
+
+Functions that are low level and deal with registers directly, this would include the functions
+to handle interrupts, syscalls, faults and peform start up actions.
+
+The seperation allows us to write code that doesnt depend on the machine we are running, instead we just
+need to change the machine dependant functions and varibles. This abstratcion makes our code much more modular and 
+reusable.
+
+Question 6
+
+The trapframe consits of 37 uint32_t's which would make it 148 bytes large.
+It contains the coprocesor's vaddr, status, cause and epc registers and
+MIPS's 31 registers and the hi and low registers.
+
+Question 7
+
+In the kern/conf/conf.kern file it tells us that we need to rerun the script when adding new files to kern.
+We also rerun the config if we want to use different kernal configs (DUMBVM, DUMBVM-OPT, GENERIC, GENERIC-OPT).
+The "OPT" configs are for performance testing.
+
+Question 8
+
+We should rerun bmake depend when we change header file inclusions or if we reran the config
+
+Question 9
+
+We run bmake to recompile our code and bmake install to install our OS. We want to rerun these commands whenever
+we add new code that we are ready to test out.
+
+Question 10 
+
+To add a command to print "hello world" we would need to edit kern/main/menu.c. We would first need to create
+a function that uses kprintf to print out "hello world" like this:
+
+static
+int
+cmd_hello_world()
+{
+	kprintf("Hello world!");
+    return 0;
+}
+
+we would then have to add the line:
+
+{ "hw",		cmd_hello_world },
+
+to the cmdtable under the "operations" comment. This would tie the command "hw" to our hello world function
+and be available in the menu.
+
+
+Question 11
+
+This is because os161 is running on sys161 which is a virtual machine that simulates
+MIPS hardware. This means it doesn't have access to functions on my machine because it is sand boxed in 
+the vm so they have to be reimplemeted.
+
+Question 12
+
+In src/userland/lib/crt0/mips/crt0.S we can see that the return value is first saved 
+in register s0 so we still have it incase exit() returns, we then call exit() and then 
+save it in a0 so that it's the argument to exit
+
+Question 13
+
+Files we need to change to add new syscall:
+
+kern/include/syscall.h
+
+    We need to add our new function prototype to this header file under the "Prototypes for IN-KERNEL entry points"
+    comment beside the other syscalls (sys_reboot() and sys___time())
+
+kern/include/kern/syscall.h
+
+    Here we define our system call number for our function so that it can be called
+    from the user space
+
+kern/arch/mips/syscall/syscall.c
+
+    We need to add a case for our function to the switch statement that starts on
+    line 102. In this case we call our function and return its value
+
+kern/syscall/{name_of_syscall}.c
+
+    In the kern/syscall folder we create a new new file called {name_of_syscall}.c
+    In this new file we write the code for implementaion of the new syscall
+
+kern/conf.kern
+
+    On line 371 we see the system call layer files, here we need to add our new filethat we have created like this:
+
+    file      syscall/{name_of_syscall}.c
+
+To implement a new syscall we had to create a new file, add a header, and modify existing code
+
+According to questions 7-9 this means we need to rerun
+
+kern/conf/config (because we added a new file to kern/)
+bmake depend (since we added to a header file and reran the config)
+bamke and then bmake install (to recompile and install our new changes)
+
+
